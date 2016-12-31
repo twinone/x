@@ -4,13 +4,27 @@ var Command = function(cmd, args) {
 }
 
 var X = function X() {
-  this.page = require('webpage').create()
+  var self = this;
+
   this.queue = []
   this.id = 1
   this.data = {}
   this.evalResult = null;
+  this.debugEnabled = true;
+  this.waitPageInterval = 250;
+  this.waitInterval = 60;
 
-  var self = this;
+
+  this.page = require('webpage').create()
+  this.page.onConsoleMessage = function(msg) {
+    self.log("Console:", msg)
+  }
+  this.page.onUrlChanged = function(url) {
+    this.log('------URL Change:', url);
+  }
+  this.page.onNavigationRequested = function(url, type, willNavigate, main) {
+    this.log('------Nav requested:', url);
+  }
 
   var assign = function(k, kk) {
     this[kk] = function() {
@@ -28,14 +42,17 @@ var X = function X() {
   }
 }
 
+X.prototype.log = function log() {
+  if (this.debugEnabled)
+    console.log.apply(console, Array.prototype.slice.call(arguments));
+}
+
+
 X.prototype.go = function go() {
   this.next()
 }
 
 X.prototype.next = function next() {
-  //console.log("go, queue:")
-  //console.log(JSON.stringify(this.queue))
-
   if (this.queue.length == 0) {
     phantom.exit()
     return;
@@ -50,18 +67,20 @@ X.prototype.next = function next() {
 
 
 X.prototype._open = function _open(url) {
-  //console.log("arguments:", JSON.stringify(url))
-  //console.log("opening:", url)
+  this.log("Loading:", url)
   this.page.onLoadFinished = function(status) {
-    //console.log("finished loading", url, status)
+    this.log("Loaded", status + ":", url)
     this.next()
+    this.page.onLoadFinished = null;
   }.bind(this)
   this.page.open(url)
 }
 
 X.prototype._delay = function _delay(millis) {
+  this.log("Waiting",millis,"ms")
   var self = this;
   setTimeout(function() {
+    self.log("Waiting done")
     self.next()
   }, millis)
 }
@@ -72,9 +91,9 @@ X.prototype._find = function _find(selector, toString) {
   }
 
   if (typeof selector === 'string') {
-    this.evalResult = this.page.evaluate(function(selector) {
-      return document.querySelector(selector).textContent
-    }, selector)
+    this.evalResult = this.page.evaluate(function(selector, toString) {
+      return toString(document.querySelector(selector))
+    }, selector, toString)
   } else if (selector instanceof Array) {
     this.evalResult = []
     for (var i = 0; i < selector.length; i++) {
@@ -103,16 +122,85 @@ X.prototype._result = function _result(func) {
 }
 
 X.prototype._render = function _render(file) {
+  file = file || 'render.png'
+  this.log("rendering to",file)
   this.page.render(file)
+  this.next()
+}
+
+X.prototype._set = function _set(selector, value, prop) {
+  prop = prop || 'value'
+  this.page.evaluate(function(sel, val, prop) {
+    document.querySelector(sel).setAttribute(prop, val)
+  }, selector, value, prop)
+  this.next()
+}
+
+X.prototype._click = function _click(selector) {
+  var clicked = this.page.evaluate(function(sel) {
+    var target = document.querySelector(sel)
+    if (target) target.click()
+    return !!target
+  }, selector)
+  if (!clicked) this.log("Warning: no target found for", selector)
+  else {
+    this.log('clicked', selector)
+  }
+  this.next()
+}
+
+/**
+Wait for a function to complete
+This function is NOT run in the webpage, see waitPage()
+*/
+X.prototype._wait = function _wait(func) {
+  var self = this;
+  this.waitId = setInterval(function() {
+    if (!!func()) {
+      clearInterval(self.waitId)
+      self.next()
+    }
+  }, this.waitInterval)
+}
+
+/**
+Wait for an event on the page
+*/
+X.prototype._waitPage = function _waitPage() {
+  var self = this;
+  var args = Array.prototype.slice.call(arguments)
+  this.waitId = setInterval(function() {
+    if (self.page.evaluate.apply(self.page, args)) {
+      clearInterval(self.waitId)
+      self.next()
+    }
+  }, this.waitPageInterval)
+}
+
+X.prototype._waitFor = function _waitFor(selector) {
+  this.log("waiting for", selector)
+  this._waitPage(function(sel, dbg) {
+    if (dbg) console.log("waiting for", sel, !!document.querySelector(sel))
+    return !!document.querySelector(sel)
+  }, selector, this.debugEnabled)
+}
+
+
+/**
+Get the phantom page to do some custom processing on it
+*/
+X.prototype._do = function _do(func) {
+  func(this.page)
   this.next()
 }
 
 
 
-// TODO
-// waitfor, frame, render, set
-
-
+X.prototype._then = function _then(func) {
+  var args = Array.prototype.slice.call(arguments).splice(1);
+  func.apply(null, args)
+  this.next()
+}
 
 
 module.exports = new X()
