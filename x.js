@@ -102,5 +102,17 @@ X.prototype._result = function _result(func) {
   this.next()
 }
 
+X.prototype._render = function _render(file) {
+  this.page.render(file)
+  this.next()
+}
+
+
+
+// TODO
+// waitfor, frame, render, set
+
+
+
 
 module.exports = new X()
