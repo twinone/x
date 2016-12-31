@@ -42,11 +42,15 @@ var X = function X() {
   }
 }
 
+X.prototype._debug = function _debug(dbg) {
+  this.debugEnabled = dbg
+  this.next()
+}
+
 X.prototype.log = function log() {
   if (this.debugEnabled)
     console.log.apply(console, Array.prototype.slice.call(arguments));
 }
-
 
 X.prototype.go = function go() {
   this.next()
