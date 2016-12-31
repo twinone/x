@@ -66,13 +66,39 @@ X.prototype._delay = function _delay(millis) {
   }, millis)
 }
 
-X.prototype._evaluate = function _evaluate(f) {
-  this.evalResult = this.page.evaluate(f)
+X.prototype._find = function _find(selector, toString) {
+  toString = toString || function toString(node) {
+    return node.textContent
+  }
+
+  if (typeof selector === 'string') {
+    this.evalResult = this.page.evaluate(function(selector) {
+      return document.querySelector(selector).textContent
+    }, selector)
+  } else if (selector instanceof Array) {
+    this.evalResult = []
+    for (var i = 0; i < selector.length; i++) {
+      var res = this.page.evaluate(function(selector, toString) {
+        var res = [];
+        var nodes = document.querySelectorAll(selector)
+        for (var i = 0; i < nodes.length; i++) {
+          res.push(toString(nodes[i]))
+        }
+        return res
+      }, selector[i], toString)
+      this.evalResult = this.evalResult.concat(res)
+    }
+  }
   this.next()
 }
 
-X.prototype._result = function _result(f) {
-  f(this.evalResult)
+X.prototype._evaluate = function _evaluate() {
+  this.evalResult = this.page.evaluate.apply(this.page, arguments)
+  this.next()
+}
+
+X.prototype._result = function _result(func) {
+  func(this.evalResult)
   this.next()
 }
 
