@@ -115,6 +115,11 @@ X.prototype._find = function _find(selector, toString) {
   this.next()
 }
 
+X.prototype._save = function _save(name) {
+  this.data[name] = this.evalResult
+  this.next()
+}
+
 X.prototype._evaluate = function _evaluate() {
   this.evalResult = this.page.evaluate.apply(this.page, arguments)
   this.next()
@@ -132,11 +137,26 @@ X.prototype._render = function _render(file) {
   this.next()
 }
 
-X.prototype._set = function _set(selector, value, prop) {
+X.prototype._set = function _set(obj, prop) {
+  if (typeof arguments[0] == 'string') {
+    var selector = arguments[0],
+        value = arguments[1],
+        prop = arguments[2]
+    var obj = {}
+    obj[selector] = value
+    this._set(obj, prop)
+    return
+  }
+
   prop = prop || 'value'
-  this.page.evaluate(function(sel, val, prop) {
-    document.querySelector(sel).setAttribute(prop, val)
-  }, selector, value, prop)
+  this.page.evaluate(function(obj, prop) {
+    for (var key in obj) {
+      if (obj.hasOwnProperty(key)) {
+        document.querySelector(key).setAttribute(prop, obj[key])
+      }
+    }
+    //document.querySelector(sel).setAttribute(prop, val)
+  }, obj, prop)
   this.next()
 }
 
@@ -198,6 +218,16 @@ X.prototype._do = function _do(func) {
   this.next()
 }
 
+
+X.prototype._switchToMainFrame = function _switchToMainFrame() {
+  this.page.switchToMainFrame()
+  this.next()
+}
+
+X.prototype._switchToFrame = function _switchToFrame(x) {
+  this.page.switchToFrame(x)
+  this.next()
+}
 
 
 X.prototype._then = function _then(func) {
