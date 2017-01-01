@@ -188,7 +188,6 @@ X.prototype._collapse = function _collapse(names) {
     }
   }
   // create the objects
-  this.log("length", length)
   var res = [];
   for (var i = 0; i < length; i++) {
     var obj = {}
@@ -326,6 +325,19 @@ X.prototype._switchToFrame = function _switchToFrame(x) {
 X.prototype._then = function _then(func) {
   var args = Array.prototype.slice.call(arguments).splice(1);
   func.apply(null, args)
+  this.next()
+}
+
+X.prototype._print = function _print() {
+  var data = JSON.stringify(x.data, null, "  ")
+  console.log(data)
+  this.next()
+}
+
+X.prototype._write = function _write(file) {
+  this.log("Writing x.data to", file)
+  var data = JSON.stringify(x.data, null, "  ")
+  require('fs').write(file, data + "\n", 'w');
   this.next()
 }
 
