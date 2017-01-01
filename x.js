@@ -9,7 +9,7 @@ var X = function X() {
   this.queue = []
   this.id = 1
   this.data = {}
-  this.evalResult = null;
+  this.result = null;
   this.debugEnabled = true;
   this.waitPageInterval = 250;
   this.waitInterval = 60;
@@ -95,11 +95,11 @@ X.prototype._find = function _find(selector, toString) {
   }
 
   if (typeof selector === 'string') {
-    this.evalResult = this.page.evaluate(function(selector, toString) {
+    this.result = this.page.evaluate(function(selector, toString) {
       return toString(document.querySelector(selector))
     }, selector, toString)
   } else if (selector instanceof Array) {
-    this.evalResult = []
+    this.result = []
     for (var i = 0; i < selector.length; i++) {
       var res = this.page.evaluate(function(selector, toString) {
         var res = [];
@@ -109,24 +109,84 @@ X.prototype._find = function _find(selector, toString) {
         }
         return res
       }, selector[i], toString)
-      this.evalResult = this.evalResult.concat(res)
+      this.result = this.result.concat(res)
     }
   }
   this.next()
 }
 
+/**
+Saves the previous result as name in the x.data bundle
+*/
 X.prototype._save = function _save(name) {
-  this.data[name] = this.evalResult
+  this.data[name] = this.result
+  this.next()
+}
+
+/**
+Example:
+x.data.name = ["John", "Peter"]
+x.data.id = [1,2]
+after
+collapse("names", "ids")
+x.result would be:
+[{"name", "John", "id": 1}, {"name": "Peter", "id: 2"}]
+
+to rename the object keys:
+collapse({"firstName":"name", "identifier": "id"})
+would change the keys in each object to those
+
+if the sizes of the input arrays are not equal a warning will be logged
+*/
+X.prototype._collapse = function _collapse(names) {
+  if (typeof arguments[0] == 'string') {
+    var args = Array.prototype.slice.call(arguments)
+    // convert the list of names to an object with no aliases
+    names = {}
+    args.forEach(function (x) { names[x] = x })
+  }
+  var length = -1
+  for (var key in names) {
+    if (names.hasOwnProperty(key)) {
+      if (!this.data[names[key]]) {
+        this.warn("data object "+names[key]+" doesn't exist (missing save?)")
+        continue
+      }
+      var l = this.data[key].length;
+      if (length == -1) length = l
+      if (length != l) this.warn("lengths don't match",l+"!="+length)
+      length = l < length ? l : length
+    }
+  }
+  // create the objects
+  this.log("length", length)
+  var res = [];
+  for (var i = 0; i < length; i++) {
+    var obj = {}
+    for (var key in names) {
+      if (names.hasOwnProperty(key)) {
+        obj[key] = this.data[names[key]][i]
+      }
+    }
+    res.push(obj)
+  }
+  this.result = res
+  // cleanup (maybe we should not do this?)
+  for (var key in names) {
+    if (names.hasOwnProperty(key)) {
+      this.data[names[key]] = undefined
+    }
+  }
   this.next()
 }
 
 X.prototype._evaluate = function _evaluate() {
-  this.evalResult = this.page.evaluate.apply(this.page, arguments)
+  this.result = this.page.evaluate.apply(this.page, arguments)
   this.next()
 }
 
 X.prototype._result = function _result(func) {
-  func(this.evalResult)
+  func(this.result)
   this.next()
 }
 
