@@ -21,17 +21,14 @@ var X = function X() {
   this.page = require('webpage').create()
 
   this.page.onLoadFinished = function() {
-    this.log("Loaded", status)
     this.isLoaded = true
     if (this.callNextOnLoad) {
-      this.log("Calling next on load")
       this.callNextOnLoad = false
       this.next()
     }
   }.bind(this)
 
   this.page.onLoadStarted = function onLoadStarted() {
-    this.log("onLoadStarted")
     this.isLoaded = false
   }.bind(this)
 
