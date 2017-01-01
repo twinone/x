@@ -10,12 +10,31 @@ var X = function X() {
   this.id = 1
   this.data = {}
   this.result = null;
-  this.debugEnabled = true;
+  this.logEnabled = true;
+  this.warnEnabled = true;
   this.waitPageInterval = 250;
   this.waitInterval = 60;
 
+  this.isLoaded = false
+  this.callNextOnLoad = false
 
   this.page = require('webpage').create()
+
+  this.page.onLoadFinished = function() {
+    this.log("Loaded", status)
+    this.isLoaded = true
+    if (this.callNextOnLoad) {
+      this.log("Calling next on load")
+      this.callNextOnLoad = false
+      this.next()
+    }
+  }.bind(this)
+
+  this.page.onLoadStarted = function onLoadStarted() {
+    this.log("onLoadStarted")
+    this.isLoaded = false
+  }.bind(this)
+
   this.page.onConsoleMessage = function(msg) {
     self.log("Console:", msg)
   }
@@ -43,12 +62,22 @@ var X = function X() {
 }
 
 X.prototype._debug = function _debug(dbg) {
-  this.debugEnabled = dbg
+  this.logEnabled = dbg
+  this.next()
+}
+
+X.prototype._debugWarn = function _debugWarn(dbg) {
+  this.warnEnabled = dbg
   this.next()
 }
 
 X.prototype.log = function log() {
-  if (this.debugEnabled)
+  if (this.logEnabled)
+    console.log.apply(console, Array.prototype.slice.call(arguments));
+}
+
+X.prototype.warn = function warn() {
+  if (this.warnEnabled)
     console.log.apply(console, Array.prototype.slice.call(arguments));
 }
 
@@ -67,16 +96,19 @@ X.prototype.next = function next() {
   //console.log("Executing command", this.queue[0].cmd)
   this.queue.shift()
   cmd.apply(this, args)
-}
 
+}
 
 X.prototype._open = function _open(url) {
   this.log("Loading:", url)
+  this.callNextOnLoad = true
+/*
   this.page.onLoadFinished = function(status) {
     this.log("Loaded", status + ":", url)
     this.next()
-    this.page.onLoadFinished = null;
+    this.page.onLoadFinished = this.defaultOnLoadFinished;
   }.bind(this)
+*/
   this.page.open(url)
 }
 
@@ -193,7 +225,9 @@ X.prototype._result = function _result(func) {
 X.prototype._render = function _render(file) {
   file = file || 'render.png'
   this.log("rendering to",file)
+  try {
   this.page.render(file)
+}catch(e) {console.log("e:",e)}
   this.next()
 }
 
@@ -238,6 +272,11 @@ Wait for a function to complete
 This function is NOT run in the webpage, see waitPage()
 */
 X.prototype._wait = function _wait(func) {
+  if (!func) {
+    this.callNextOnLoad = true
+    return
+  }
+
   var self = this;
   this.waitId = setInterval(function() {
     if (!!func()) {
@@ -266,9 +305,8 @@ X.prototype._waitFor = function _waitFor(selector) {
   this._waitPage(function(sel, dbg) {
     if (dbg) console.log("waiting for", sel, !!document.querySelector(sel))
     return !!document.querySelector(sel)
-  }, selector, this.debugEnabled)
+  }, selector, this.logEnabled)
 }
-
 
 /**
 Get the phantom page to do some custom processing on it
@@ -277,7 +315,6 @@ X.prototype._do = function _do(func) {
   func(this.page)
   this.next()
 }
-
 
 X.prototype._switchToMainFrame = function _switchToMainFrame() {
   this.page.switchToMainFrame()
@@ -289,12 +326,10 @@ X.prototype._switchToFrame = function _switchToFrame(x) {
   this.next()
 }
 
-
 X.prototype._then = function _then(func) {
   var args = Array.prototype.slice.call(arguments).splice(1);
   func.apply(null, args)
   this.next()
 }
-
 
 module.exports = new X()
